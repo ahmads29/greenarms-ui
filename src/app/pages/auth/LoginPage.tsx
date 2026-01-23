@@ -10,8 +10,8 @@ import { Eye, EyeOff, Github } from "lucide-react";
 export function LoginPage() {
     const { login } = useApp();
     const navigate = useNavigate();
-    const [username, setUsername] = useState("sharkawi");
-    const [password, setPassword] = useState("W16Zz2FS$$g%q#");
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
     const [isLoading, setIsLoading] = useState(false);
@@ -31,7 +31,7 @@ export function LoginPage() {
             try {
                 // Mock API call
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                
+
                 // Mock success
                 const mockUser = {
                     username: username,
@@ -39,7 +39,7 @@ export function LoginPage() {
                     role: "admin",
                     canModify: true
                 };
-                
+
                 toast.success("Logged in successfully");
                 login("mock-jwt-token", mockUser);
             } catch (error) {
