@@ -15,6 +15,8 @@ import { DispatchLogs } from "@/app/pages/DispatchLogs";
 import { AuditLogs } from "@/app/pages/AuditLogs";
 import { LoginPage } from "@/app/pages/auth/LoginPage";
 import { RegisterPage } from "@/app/pages/auth/RegisterPage";
+import { EmailRegisterPage } from "@/app/pages/auth/EmailRegisterPage";
+import { VerifyEmailPage } from "@/app/pages/auth/VerifyEmailPage";
 import { Toaster } from "sonner";
 
 // Protected Route wrapper
@@ -46,6 +48,16 @@ function AppContent() {
             <Route path="/login" element={
                 <AuthRoute>
                     <LoginPage />
+                </AuthRoute>
+            } />
+            <Route path="/register-email" element={
+                <AuthRoute>
+                    <EmailRegisterPage />
+                </AuthRoute>
+            } />
+            <Route path="/verify-email" element={
+                <AuthRoute>
+                    <VerifyEmailPage />
                 </AuthRoute>
             } />
             <Route path="/register" element={

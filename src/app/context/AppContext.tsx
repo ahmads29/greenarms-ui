@@ -8,13 +8,17 @@ interface User {
 
 interface AppContextType {
   isAuthenticated: boolean;
-  login: () => void;
+  login: (token: string, userData: any) => void;
   logout: () => void;
   user: User;
   currentPage: string;
   navigateTo: (page: string) => void;
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
+  registrationEmail: string | null;
+  setRegistrationEmail: (email: string) => void;
+  isEmailVerified: boolean;
+  setIsEmailVerified: (verified: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -23,6 +27,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentPage, setCurrentPage] = useState("login"); // Start at login
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [registrationEmail, setRegistrationEmail] = useState<string | null>(null);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   // Mock user - Admin role
   const user: User = {
@@ -31,7 +37,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     canModify: true,
   };
 
-  const login = () => {
+  const login = (token: string, userData: any) => {
+    localStorage.setItem("token", token);
+    // In a real app, we would parse the user data or decode the token
+    // setUser(userData); 
     setIsAuthenticated(true);
     setCurrentPage("dashboard");
   };
@@ -39,6 +48,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setIsAuthenticated(false);
     setCurrentPage("login");
+    setRegistrationEmail(null);
+    setIsEmailVerified(false);
   };
 
   const navigateTo = (page: string) => {
@@ -50,7 +61,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ user, currentPage, navigateTo, sidebarCollapsed, toggleSidebar, isAuthenticated, login, logout }}>
+    <AppContext.Provider value={{ 
+      user, 
+      currentPage, 
+      navigateTo, 
+      sidebarCollapsed, 
+      toggleSidebar, 
+      isAuthenticated, 
+      login, 
+      logout,
+      registrationEmail,
+      setRegistrationEmail,
+      isEmailVerified,
+      setIsEmailVerified
+    }}>
       {children}
     </AppContext.Provider>
   );

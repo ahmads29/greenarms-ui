@@ -10,25 +10,44 @@ import { Eye, EyeOff, Github } from "lucide-react";
 export function LoginPage() {
     const { login } = useApp();
     const navigate = useNavigate();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    const [username, setUsername] = useState("sharkawi");
+    const [password, setPassword] = useState("W16Zz2FS$$g%q#");
     const [showPassword, setShowPassword] = useState(false);
-    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+    const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
+    const [isLoading, setIsLoading] = useState(false);
 
     const validate = () => {
-        const newErrors: { email?: string; password?: string } = {};
-        if (!email) newErrors.email = "Email or Username is required";
+        const newErrors: { username?: string; password?: string } = {};
+        if (!username) newErrors.username = "Username is required";
         if (!password) newErrors.password = "Password is required";
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (validate()) {
-            // Mock login success
-            toast.success("Logged in successfully");
-            login();
+            setIsLoading(true);
+            try {
+                // Mock API call
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Mock success
+                const mockUser = {
+                    username: username,
+                    email: "admin@greenarms.com",
+                    role: "admin",
+                    canModify: true
+                };
+                
+                toast.success("Logged in successfully");
+                login("mock-jwt-token", mockUser);
+            } catch (error) {
+                console.error("Login error:", error);
+                toast.error("An error occurred during login. Please try again.");
+            } finally {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -45,16 +64,17 @@ export function LoginPage() {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
-                        <Label htmlFor="email">Email or Username</Label>
+                        <Label htmlFor="username">Username</Label>
                         <Input
-                            id="email"
+                            id="username"
                             type="text"
-                            placeholder="Enter your email or username"
-                            value={email}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                            className={errors.email ? "border-destructive" : ""}
+                            placeholder="Enter your username"
+                            value={username}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
+                            className={errors.username ? "border-destructive" : ""}
+                            disabled={isLoading}
                         />
-                        {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                        {errors.username && <p className="text-sm text-destructive">{errors.username}</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -67,11 +87,13 @@ export function LoginPage() {
                                 value={password}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                                 className={errors.password ? "border-destructive" : ""}
+                                disabled={isLoading}
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                disabled={isLoading}
                             >
                                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
@@ -88,7 +110,7 @@ export function LoginPage() {
                             Don't have an account?{" "}
                             <button
                                 type="button"
-                                onClick={() => navigate("/register")}
+                                onClick={() => navigate("/register-email")}
                                 className="hover:underline font-medium"
                                 style={{ color: '#4f39f6' }}
                             >

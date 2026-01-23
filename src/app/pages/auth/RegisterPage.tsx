@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/app/context/AppContext";
 import { Button } from "@/app/components/ui/button";
@@ -13,7 +13,7 @@ import "react-phone-number-input/style.css";
 const countries = getCountries().filter(country => country !== 'IL');
 
 export function RegisterPage() {
-    const { login } = useApp();
+    const { login, registrationEmail, isEmailVerified } = useApp();
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
         firstName: "",
@@ -23,6 +23,14 @@ export function RegisterPage() {
     });
     const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        if (!registrationEmail) {
+            navigate("/register-email");
+        } else if (!isEmailVerified) {
+            navigate("/verify-email");
+        }
+    }, [registrationEmail, isEmailVerified, navigate]);
 
     const validatePassword = (pwd: string) => {
         const hasUpper = /[A-Z]/.test(pwd);
@@ -58,9 +66,11 @@ export function RegisterPage() {
         if (validate()) {
             // Mock register success
             toast.success("Account created successfully");
-            login();
+            login("mock-token", { email: registrationEmail, role: "viewer", canModify: false });
         }
     };
+
+    if (!registrationEmail || !isEmailVerified) return null;
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
@@ -69,11 +79,21 @@ export function RegisterPage() {
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/5 text-primary mb-4">
                         <UserPlus className="w-8 h-8" />
                     </div>
-                    <h1 className="text-2xl font-bold text-foreground">Create Account</h1>
-                    <p className="text-muted-foreground mt-2">Join GreenArms today</p>
+                    <h1 className="text-2xl font-bold text-foreground">Complete Registration</h1>
+                    <p className="text-muted-foreground mt-2">Set up your profile details</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input
+                            id="email"
+                            value={registrationEmail}
+                            disabled
+                            className="bg-muted text-muted-foreground"
+                        />
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="firstName">First Name</Label>
@@ -135,7 +155,7 @@ export function RegisterPage() {
                     </div>
 
                     <Button type="submit" className="w-full mt-4" style={{ backgroundColor: '#4f39f6', color: 'white' }}>
-                        Register
+                        Complete Registration
                     </Button>
 
                     <div className="text-center mt-4">
