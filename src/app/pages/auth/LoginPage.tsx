@@ -4,6 +4,7 @@ import { useApp } from "@/app/context/AppContext";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import { toast } from "sonner";
 import { Eye, EyeOff, Github } from "lucide-react";
 
@@ -13,6 +14,7 @@ export function LoginPage() {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
     const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
     const [isLoading, setIsLoading] = useState(false);
 
@@ -99,6 +101,20 @@ export function LoginPage() {
                             </button>
                         </div>
                         {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                        <Checkbox 
+                            id="remember" 
+                            checked={rememberMe} 
+                            onCheckedChange={(checked) => setRememberMe(checked as boolean)} 
+                        />
+                        <label
+                            htmlFor="remember"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-muted-foreground"
+                        >
+                            Remember me
+                        </label>
                     </div>
 
                     <Button type="submit" className="w-full" style={{ backgroundColor: '#4f39f6', color: 'white' }}>

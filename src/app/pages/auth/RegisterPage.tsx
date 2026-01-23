@@ -4,10 +4,12 @@ import { useApp } from "@/app/context/AppContext";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { toast } from "sonner";
 import { Eye, EyeOff, UserPlus } from "lucide-react";
-import PhoneInput, { getCountries } from "react-phone-number-input";
+import { getCountries, getCountryCallingCode, Country } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
+import * as Flags from 'country-flag-icons/react/3x2';
 
 // Get all countries except Israel
 const countries = getCountries().filter(country => country !== 'IL');
@@ -23,6 +25,12 @@ export function RegisterPage() {
     });
     const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
+    
+    const [selectedCountry, setSelectedCountry] = useState<Country>("IT");
+    const [localPhoneNumber, setLocalPhoneNumber] = useState("");
+
+    // Region names for display
+    const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
     useEffect(() => {
         if (!registrationEmail) {
@@ -31,6 +39,20 @@ export function RegisterPage() {
             navigate("/verify-email");
         }
     }, [registrationEmail, isEmailVerified, navigate]);
+
+    // Update full phone number when country or local number changes
+    useEffect(() => {
+        if (localPhoneNumber) {
+            try {
+                const callingCode = getCountryCallingCode(selectedCountry);
+                setFormData(prev => ({ ...prev, phoneNumber: `+${callingCode}${localPhoneNumber}` }));
+            } catch (e) {
+                // Handle error if country code lookup fails
+            }
+        } else {
+            setFormData(prev => ({ ...prev, phoneNumber: "" }));
+        }
+    }, [selectedCountry, localPhoneNumber]);
 
     const validatePassword = (pwd: string) => {
         const hasUpper = /[A-Z]/.test(pwd);
@@ -47,7 +69,7 @@ export function RegisterPage() {
         if (!formData.firstName) newErrors.firstName = "First name is required";
         if (!formData.lastName) newErrors.lastName = "Last name is required";
 
-        if (!formData.phoneNumber) {
+        if (!localPhoneNumber) {
             newErrors.phoneNumber = "Phone number is required";
         }
 
@@ -119,14 +141,40 @@ export function RegisterPage() {
 
                     <div className="space-y-2">
                         <Label>Phone Number</Label>
-                        <PhoneInput
-                            international
-                            defaultCountry="I"
-                            countries={countries}
-                            value={formData.phoneNumber}
-                            onChange={(value) => setFormData({ ...formData, phoneNumber: value || "" })}
-                            className={`phone-input ${errors.phoneNumber ? "phone-input-error" : ""}`}
-                        />
+                        <div className="flex gap-2">
+                            <div className="w-[180px]">
+                                <Select 
+                                    value={selectedCountry} 
+                                    onValueChange={(value: Country) => setSelectedCountry(value)}
+                                >
+                                    <SelectTrigger className={errors.phoneNumber ? "border-destructive" : ""}>
+                                        <SelectValue placeholder="Country" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {countries.map((country) => {
+                                            const FlagComponent = Flags[country as keyof typeof Flags];
+                                            const countryName = regionNames.of(country);
+                                            return (
+                                                <SelectItem key={country} value={country}>
+                                                    <div className="flex items-center gap-2">
+                                                        {FlagComponent && <FlagComponent className="w-5 h-4 rounded-sm shrink-0" />}
+                                                        <span className="truncate">{countryName}</span>
+                                                        <span className="text-muted-foreground ml-auto">+{getCountryCallingCode(country)}</span>
+                                                    </div>
+                                                </SelectItem>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <Input
+                                type="tel"
+                                placeholder="Phone number"
+                                value={localPhoneNumber}
+                                onChange={(e) => setLocalPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                                className={`flex-1 ${errors.phoneNumber ? "border-destructive" : ""}`}
+                            />
+                        </div>
                         {errors.phoneNumber && <p className="text-xs text-destructive">{errors.phoneNumber}</p>}
                     </div>
 
