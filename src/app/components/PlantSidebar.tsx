@@ -11,9 +11,10 @@ import {
     ChevronRight,
     ArrowLeft
 } from "lucide-react";
-import { mockPlants } from "@/app/data/mockData";
 import { Button } from "@/app/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { sitesApi } from "@/app/api";
+import { Site } from "@/app/types/api/Sites.types";
 
 interface PlantSidebarProps {
     isMobileOpen: boolean;
@@ -26,10 +27,22 @@ export function PlantSidebar({ isMobileOpen, onMobileClose }: PlantSidebarProps)
     const location = useLocation();
     const { id } = useParams<{ id: string }>();
     const [expandedSections, setExpandedSections] = useState<string[]>([]);
+    const [plant, setPlant] = useState<Site | null>(null);
 
-    const plant = mockPlants.find((p: { id: string }) => p.id === id);
+    useEffect(() => {
+        const fetchPlant = async () => {
+            if (!id) return;
+            try {
+                const data = await sitesApi.getSite(id);
+                setPlant(data);
+            } catch (error) {
+                console.error("Failed to fetch plant for sidebar:", error);
+            }
+        };
+        fetchPlant();
+    }, [id]);
 
-    if (!plant) return null;
+    if (!plant) return null; // Or show a loading skeleton
 
     const navItems = [
         { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: `/plants/${id}` },
@@ -119,14 +132,15 @@ export function PlantSidebar({ isMobileOpen, onMobileClose }: PlantSidebarProps)
                                     <LayoutDashboard className="h-8 w-8 opacity-20" />
                                 </div>
                                 {/* Overlay Status */}
-                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 font-medium">
-                                    {plant.status === 'active' ? 'Active' : 'Maintenance'}
-                                </div>
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 font-medium">
+                                {/* Default to Active if status is missing */}
+                                {(plant as any).status === 'maintenance' ? 'Maintenance' : 'Active'}
                             </div>
-                            {/* <h3 className="font-semibold text-gray-900 truncate">{plant.name}</h3> */}
-                            <p className="text-sm text-gray-600">Capacity: {plant.capacity_kwp} kWp</p>
                         </div>
-                    )}
+                        {/* <h3 className="font-semibold text-gray-900 truncate">{plant.name}</h3> */}
+                        <p className="text-sm text-gray-600">Capacity: {(plant as any).capacity_kwp || 0} kWp</p>
+                    </div>
+                )}
 
                     {/* Navigation */}
                     <nav className="flex-1 overflow-y-auto py-4">

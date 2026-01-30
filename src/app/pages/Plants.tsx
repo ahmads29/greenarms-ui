@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/app/components/PageHeader";
 import { mockPlants, mockDevices } from "@/app/data/mockData";
@@ -6,28 +6,96 @@ import { useApp } from "@/app/context/AppContext";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
-import { Building2, Edit, Eye } from "lucide-react";
+import { Building2, Edit, Eye, Loader2 } from "lucide-react";
 import { Badge } from "@/app/components/ui/badge";
+import { CreateSiteDialog } from "@/app/components/CreateSiteDialog";
+import { Site } from "@/app/types/api/Sites.types";
+import { sitesApi } from "@/app/api";
+import { toast } from "sonner";
 
 export function Plants() {
   const { user } = useApp();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [plants, setPlants] = useState<Site[]>([]);
 
-  const filteredPlants = mockPlants.filter((plant) =>
+  useEffect(() => {
+    fetchPlants();
+  }, []);
+
+  const fetchPlants = async () => {
+    setIsLoading(true);
+    try {
+      const response = await sitesApi.getSites();
+      // Handle different response structures (array vs paginated object)
+      const data = Array.isArray(response) ? response : (response as any).results || [];
+      
+      if (Array.isArray(data)) {
+        setPlants(data);
+      } else {
+        console.error("Unexpected API response format:", response);
+        setPlants([]);
+        toast.error("Received invalid data format from server");
+      }
+    } catch (error) {
+      console.error("Failed to fetch plants:", error);
+      // Fallback to mock data if API fails
+      toast.error("Failed to load plants from API. Using local data.");
+      
+      const initialPlants = mockPlants.map(p => ({
+        ...p,
+        id: p.id, // Keep original ID (string)
+        country: "US", // Default for mock
+        state: "NY", // Default for mock
+        uses_dynamic_tariff: false,
+        device_count: 0,
+        updated_at: new Date().toISOString()
+      })) as unknown as Site[];
+      
+      setPlants(initialPlants);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredPlants = plants.filter((plant) =>
     plant.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getPlantDeviceCount = (plantId: string) => {
-    const devices = mockDevices.filter((d) => d.plant_id === plantId);
+  const handleCreateClick = () => {
+    setEditingSite(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleEditClick = (plant: Site) => {
+    setEditingSite(plant);
+    setIsDialogOpen(true);
+  };
+
+  const handleSaveSuccess = (savedSite: Site) => {
+    setPlants(prev => {
+      const exists = prev.find(p => p.id === savedSite.id);
+      if (exists) {
+        return prev.map(p => p.id === savedSite.id ? savedSite : p);
+      }
+      return [...prev, savedSite];
+    });
+  };
+
+  const getPlantDeviceCount = (plantId: string | number) => {
+    const devices = mockDevices.filter((d) => d.plant_id === plantId.toString());
     const masters = devices.filter((d) => d.role === "master").length;
     const slaves = devices.filter((d) => d.role === "slave").length;
     const standalone = devices.filter((d) => d.role === "standalone").length;
     return { total: devices.length, masters, slaves, standalone };
   };
 
-  const getPlantStatus = (plantId: string) => {
-    const devices = mockDevices.filter((d) => d.plant_id === plantId);
+  const getPlantStatus = (plantId: string | number) => {
+    const devices = mockDevices.filter((d) => d.plant_id === plantId.toString());
     if (devices.length === 0) return "No Devices";
 
     const onlineDevices = devices.filter(
@@ -42,8 +110,8 @@ export function Plants() {
     return "Offline";
   };
 
-  const getPlantDecisions = (plantId: string) => {
-    const devices = mockDevices.filter((d) => d.plant_id === plantId);
+  const getPlantDecisions = (plantId: string | number) => {
+    const devices = mockDevices.filter((d) => d.plant_id === plantId.toString());
     const charging = devices.filter((d) => d.effective_status === "CHARGING").length;
     const discharging = devices.filter((d) => d.effective_status === "DISCHARGING").length;
     const neutral = devices.filter((d) => d.effective_status === "NEUTRAL").length;
@@ -57,7 +125,7 @@ export function Plants() {
         description="Manage your plants and locations"
         action={
           user.canModify && (
-            <Button>
+            <Button onClick={handleCreateClick}>
               <Building2 className="h-4 w-4 mr-2" />
               Create Plant
             </Button>
@@ -79,7 +147,12 @@ export function Plants() {
 
           {/* Table */}
           <div className="overflow-x-auto">
-            <table className="w-full">
+            {isLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+              </div>
+            ) : (
+              <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
@@ -115,7 +188,7 @@ export function Plants() {
                         Get started by creating your first plant
                       </p>
                       {user.canModify && (
-                        <Button className="mt-4">Create Plant</Button>
+                        <Button className="mt-4" onClick={handleCreateClick}>Create Plant</Button>
                       )}
                     </td>
                   </tr>
@@ -171,7 +244,7 @@ export function Plants() {
                               <Eye className="h-4 w-4" />
                             </Button>
                             {user.canModify && (
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" onClick={() => handleEditClick(plant)}>
                                 <Edit className="h-4 w-4" />
                               </Button>
                             )}
@@ -180,12 +253,20 @@ export function Plants() {
                       </tr>
                     );
                   })
-                )}
+          )}
               </tbody>
             </table>
+            )}
           </div>
         </CardContent>
       </Card>
+      
+      <CreateSiteDialog 
+        open={isDialogOpen} 
+        onOpenChange={setIsDialogOpen}
+        siteToEdit={editingSite}
+        onSuccess={handleSaveSuccess}
+      />
     </div>
   );
 }

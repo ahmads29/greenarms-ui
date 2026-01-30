@@ -14,8 +14,10 @@ import * as Flags from 'country-flag-icons/react/3x2';
 // Get all countries except Israel
 const countries = getCountries().filter(country => country !== 'IL');
 
+import { authApi } from "@/app/api";
+
 export function RegisterPage() {
-    const { login, registrationEmail, isEmailVerified } = useApp();
+    const { login, registrationEmail, isEmailVerified, verificationToken } = useApp();
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
         firstName: "",
@@ -83,14 +85,44 @@ export function RegisterPage() {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        if (validate()) {
-            // Mock register success
-            toast.success("Account created successfully");
-            login("mock-token", { email: registrationEmail, role: "viewer", canModify: false });
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (validate()) {
+      setIsLoading(true);
+      try {
+        if (!verificationToken) {
+          toast.error("Missing verification token. Please verify email again.");
+          return;
         }
-    };
+
+        const response = await authApi.registerUser({
+          username: registrationEmail!, // Using email as username
+          email: registrationEmail!,
+          password: formData.password,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          verification_token: verificationToken
+        });
+
+        toast.success("Account created successfully");
+        
+        // Login the user with the returned tokens
+        login(response.access_token, { 
+          email: registrationEmail!, 
+          role: "viewer", // Default role
+          canModify: false 
+        });
+        
+        // Store refresh token if needed (handled in login or here)
+        localStorage.setItem('refreshToken', response.refresh_token);
+
+      } catch (err: any) {
+        toast.error(err.message || "Registration failed");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
 
     if (!registrationEmail || !isEmailVerified) return null;
 

@@ -7,7 +7,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ onMobileMenuClick }: TopBarProps) {
-  const { user, sidebarCollapsed } = useApp();
+  const { user, sidebarCollapsed, logout } = useApp();
 
   return (
     <div className={`h-16 bg-white border-b border-gray-200 fixed top-0 right-0 left-0 z-30 transition-all duration-300 ${sidebarCollapsed ? 'md:left-16' : 'md:left-64'}`}>
@@ -47,7 +47,7 @@ export function TopBar({ onMobileMenuClick }: TopBarProps) {
           <span className="hidden sm:inline text-sm text-gray-700">{user.email}</span>
 
           {/* Logout Button */}
-          <Button variant="ghost" size="icon" title="Logout">
+          <Button variant="ghost" size="icon" title="Logout" onClick={() => logout()}>
             <LogOut className="h-5 w-5" />
           </Button>
         </div>
