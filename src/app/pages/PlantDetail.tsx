@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
+import houseImage from "@/assets/house.png";
 
 // Mock time series data for charts
 const generatePowerData = () => {
@@ -54,6 +55,59 @@ export function PlantDetail() {
   const [timePeriod, setTimePeriod] = useState<"day" | "month" | "year" | "total">("day");
   const [powerData] = useState(generatePowerData());
   const [socData] = useState(generateSOCData());
+
+  const [visibleSeries, setVisibleSeries] = useState<Record<string, boolean>>({
+    solar: true,
+    fromGrid: true,
+    discharge: true,
+    consumption: true,
+    toGrid: true,
+    charge: true,
+  });
+
+  const handleLegendClick = (e: any) => {
+    const { dataKey } = e;
+    setVisibleSeries((prev) => ({
+      ...prev,
+      [dataKey]: !prev[dataKey],
+    }));
+  };
+
+  const renderLegend = (props: any) => {
+    const { payload } = props;
+    
+    return (
+      <ul className="flex flex-wrap justify-center gap-4 mt-4">
+        {payload.map((entry: any, index: number) => {
+          const { dataKey, value, color } = entry;
+          const isVisible = visibleSeries[dataKey];
+          
+          return (
+            <li 
+              key={`item-${index}`}
+              className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => handleLegendClick({ dataKey })}
+            >
+              <div 
+                className={`w-4 h-4 border rounded flex items-center justify-center transition-colors ${isVisible ? 'bg-white' : 'bg-gray-100'}`}
+                style={{ borderColor: color }}
+              >
+                {isVisible && (
+                  <div 
+                    className="w-2.5 h-2.5 rounded-sm" 
+                    style={{ backgroundColor: color }}
+                  />
+                )}
+              </div>
+              <span className={`text-sm ${isVisible ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>
+                {value}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
 
   if (!plant) {
     return (
@@ -207,51 +261,132 @@ export function PlantDetail() {
         }
       />
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Solar Production</p>
-              <p className="text-3xl font-bold text-gray-900">{currentSolar.toFixed(1)} kW</p>
-              <p className="text-sm text-green-600">↑ 12% vs yesterday</p>
-            </div>
-          </CardContent>
+      {/* Metrics Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* House Image Card */}
+        <Card className="flex items-center justify-center p-4 bg-white overflow-hidden h-full relative">
+             <div className="relative w-full h-full">
+                <img src={houseImage} alt="House" className="w-full h-full object-cover rounded-lg" />
+                
+                {/* SVG Overlay for connecting lines */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none drop-shadow-md">
+                  {/* Solar Line - Points directly to Roof Panels */}
+                  <line x1="10%" y1="18%" x2="40%" y2="49%" stroke="black" strokeWidth="1.5" strokeDasharray="4 2" />
+                  <circle cx="40%" cy="49%" r="3" fill="black" />
+
+                  {/* Consumption Line - Points to Window */}
+                  <line x1="75%" y1="82%" x2="60%" y2="62%" stroke="black" strokeWidth="1.5" strokeDasharray="4 2" />
+                  <circle cx="60%" cy="62%" r="3" fill="black" />
+
+                  {/* Battery Line - Points to Battery Unit */}
+                  <line x1="25%" y1="82%" x2="28%" y2="76%" stroke="black" strokeWidth="1.5" strokeDasharray="4 2" />
+                  <circle cx="28%" cy="76%" r="3" fill="black" />
+
+                  {/* Grid Line - Points to Middle of Pole */}
+                  <line x1="55%" y1="18%" x2="78%" y2="45%" stroke="black" strokeWidth="1.5" strokeDasharray="4 2" />
+                  <circle cx="78%" cy="45%" r="3" fill="black" />
+                </svg>
+
+                {/* Solar Production Overlay */}
+                <div 
+                  className="absolute bg-white/30 backdrop-blur-md border border-white/40 rounded-lg p-2 shadow-lg text-center min-w-[90px] transform transition-transform hover:scale-105 origin-bottom-left"
+                  style={{ top: '18%', transform: 'translate(0, -100%)' }}
+                >
+                  <p className="text-[9px] font-bold text-gray-800 uppercase tracking-wide mb-0.5">Solar</p>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.6)]"></div>
+                    <p className="text-sm font-bold text-gray-900">{currentSolar.toFixed(1)} kW</p>
+                  </div>
+                </div>
+
+                {/* Consumption Overlay */}
+                <div 
+                  className="absolute bg-white/30 backdrop-blur-md border border-white/40 rounded-lg p-2 shadow-lg text-center min-w-[90px] transform transition-transform hover:scale-105 origin-top-left"
+                  style={{ left: '75%', top: '82%' }}
+                >
+                  <p className="text-[9px] font-bold text-gray-800 uppercase tracking-wide mb-0.5">Load</p>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.6)]"></div>
+                    <p className="text-sm font-bold text-gray-900">{currentConsumption.toFixed(1)} kW</p>
+                  </div>
+                </div>
+
+                {/* Battery Status Overlay */}
+                <div 
+                  className="absolute bg-white/30 backdrop-blur-md border border-white/40 rounded-lg p-2 shadow-lg text-center min-w-[90px] transform transition-transform hover:scale-105 origin-top"
+                  style={{ left: '25%', top: '82%', transform: 'translate(-50%, 0)' }}
+                >
+                  <p className="text-[9px] font-bold text-gray-800 uppercase tracking-wide mb-0.5">Battery</p>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <div className={`w-1.5 h-1.5 rounded-full ${netBattery > 0 ? 'bg-green-500' : 'bg-indigo-500'} shadow-sm`}></div>
+                    <p className={`text-sm font-bold ${netBattery > 0 ? 'text-green-700' : 'text-indigo-700'}`}>
+                      {Math.abs(netBattery).toFixed(1)} kW
+                    </p>
+                  </div>
+                  <p className="text-[8px] text-gray-700 mt-0.5 font-medium">{netBattery > 0 ? 'Discharging' : (netBattery < 0 ? 'Charging' : 'Idle')}</p>
+                </div>
+
+                {/* Grid Status Overlay */}
+                <div 
+                  className="absolute bg-white/30 backdrop-blur-md border border-white/40 rounded-lg p-2 shadow-lg text-center min-w-[90px] transform transition-transform hover:scale-105 origin-bottom-right"
+                  style={{ left: '65%', top: '18%', transform: 'translate(-100%, -100%)' }}
+                >
+                  <p className="text-[9px] font-bold text-gray-800 uppercase tracking-wide mb-0.5">Grid</p>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <div className={`w-1.5 h-1.5 rounded-full ${netGrid < 0 ? 'bg-green-500' : 'bg-orange-500'} shadow-sm`}></div>
+                    <p className="text-sm font-bold text-gray-900">{Math.abs(netGrid).toFixed(1)} kW</p>
+                  </div>
+                  <p className="text-[8px] text-gray-700 mt-0.5 font-medium">{netGrid < 0 ? 'Exporting' : (netGrid > 0 ? 'Importing' : 'Islanded')}</p>
+                </div>
+             </div>
         </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Consumption</p>
-              <p className="text-3xl font-bold text-gray-900">{currentConsumption.toFixed(1)} kW</p>
-              <p className="text-sm text-gray-500">Normal range</p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Metrics Grid (2x2) */}
+        <div className="hidden md:grid grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Solar Production</p>
+                <p className="text-2xl font-bold text-gray-900">{currentSolar.toFixed(1)} kW</p>
+                <p className="text-xs text-green-600">↑ 12% vs yesterday</p>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Battery Status</p>
-              <p className={`text-3xl font-bold ${netBattery > 0 ? 'text-green-600' : 'text-indigo-600'}`}>
-                {Math.abs(netBattery).toFixed(1)} kW
-              </p>
-              <p className="text-sm text-gray-500">{netBattery > 0 ? 'Discharging' : (netBattery < 0 ? 'Charging' : 'Idle')}</p>
-            </div>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Consumption</p>
+                <p className="text-2xl font-bold text-gray-900">{currentConsumption.toFixed(1)} kW</p>
+                <p className="text-xs text-gray-500">Normal range</p>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Grid Status</p>
-              <p className="text-3xl font-bold text-gray-900">{Math.abs(netGrid).toFixed(1)} kW</p>
-              <p className={`text-sm ${netGrid < 0 ? 'text-green-600' : 'text-orange-600'}`}>
-                {netGrid < 0 ? 'Exporting' : (netGrid > 0 ? 'Importing' : 'Islanded')}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Battery Status</p>
+                <p className={`text-2xl font-bold ${netBattery > 0 ? 'text-green-600' : 'text-indigo-600'}`}>
+                  {Math.abs(netBattery).toFixed(1)} kW
+                </p>
+                <p className="text-xs text-gray-500">{netBattery > 0 ? 'Discharging' : (netBattery < 0 ? 'Charging' : 'Idle')}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Grid Status</p>
+                <p className="text-2xl font-bold text-gray-900">{Math.abs(netGrid).toFixed(1)} kW</p>
+                <p className={`text-xs ${netGrid < 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                  {netGrid < 0 ? 'Exporting' : (netGrid > 0 ? 'Importing' : 'Islanded')}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Time Period Selector */}
@@ -328,7 +463,7 @@ export function PlantDetail() {
                     label={{ value: 'kW', angle: -90, position: 'insideLeft' }}
                   />
                   <Tooltip content={<CustomTooltip />} />
-                  <Legend />
+                  <Legend content={renderLegend} />
                   <ReferenceLine y={0} stroke="#9ca3af" />
 
                   {/* Positive Flows */}
@@ -339,6 +474,7 @@ export function PlantDetail() {
                     fill="url(#colorSolar)"
                     name="Solar Production"
                     fillOpacity={1}
+                    hide={!visibleSeries.solar}
                   />
                   <Area
                     type="monotone"
@@ -347,6 +483,7 @@ export function PlantDetail() {
                     fill="url(#colorGridImport)"
                     name="From Grid"
                     fillOpacity={1}
+                    hide={!visibleSeries.fromGrid}
                   />
                   <Area
                     type="monotone"
@@ -355,6 +492,7 @@ export function PlantDetail() {
                     fill="#8b5cf6"
                     name="Batt Discharge"
                     fillOpacity={0.6}
+                    hide={!visibleSeries.discharge}
                   />
 
                   {/* Negative Flows */}
@@ -365,6 +503,7 @@ export function PlantDetail() {
                     fill="url(#colorConsumption)"
                     name="Consumption"
                     fillOpacity={1}
+                    hide={!visibleSeries.consumption}
                   />
                   <Area
                     type="monotone"
@@ -373,6 +512,7 @@ export function PlantDetail() {
                     fill="url(#colorGridExport)"
                     name="To Grid"
                     fillOpacity={1}
+                    hide={!visibleSeries.toGrid}
                   />
                   <Area
                     type="monotone"
@@ -381,6 +521,7 @@ export function PlantDetail() {
                     fill="#3b82f6"
                     name="Batt Charge"
                     fillOpacity={0.6}
+                    hide={!visibleSeries.charge}
                   />
                 </AreaChart>
               </ResponsiveContainer>
