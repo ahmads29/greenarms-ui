@@ -79,11 +79,11 @@ export const verifyOtp = async (email: string, otp_code: string): Promise<Verify
 
 /**
  * Register new user (Final step)
- * Real endpoint: POST /auth/register/
+ * Real endpoint: POST /auth/register/complete/
  */
 export const registerUser = async (data: RegisterRequest): Promise<RegisterResponse> => {
   try {
-    const response = await client.post<RegisterResponse>('/auth/register/', data);
+    const response = await client.post<RegisterResponse>('/auth/register/complete/', data);
     
     // Store tokens
     if (response.data.access) {
