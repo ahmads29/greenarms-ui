@@ -1,16 +1,22 @@
 import { PageHeader } from "@/app/components/PageHeader";
 import { RoleBadge } from "@/app/components/RoleBadge";
 import { HealthBadge } from "@/app/components/HealthBadge";
-import { mockPlants, mockDevices, mockPrices } from "@/app/data/mockData";
+import { mockDevices, mockPrices } from "@/app/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
-import { ArrowLeft, Building2, Settings, Activity, Leaf, DollarSign, TreeDeciduous } from "lucide-react";
+import { ArrowLeft, Building2, Settings, Activity, Leaf, DollarSign, TreeDeciduous, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
-import houseImage from "@/assets/house.png";
+import houseImage from "@/assets/house1.png";
+import { sitesApi } from "@/app/api";
+import { getDevices } from "@/app/api/devices.api"; // Import devices API
+import { Site } from "@/app/types/api/Sites.types";
+import { Device } from "@/app/types/api/Devices.types"; // Import Device type
+import { toast } from "sonner";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
 
 // Mock time series data for charts
 const generatePowerData = () => {
@@ -51,7 +57,13 @@ import { AlertTriangle } from "lucide-react";
 export function PlantDetail() {
   const { id: plantId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const plant = mockPlants.find((p) => p.id === plantId);
+  const [searchParams] = useSearchParams();
+  const currentTab = searchParams.get("tab") || "dashboard";
+
+  const [loading, setLoading] = useState(true);
+  const [plant, setPlant] = useState<Site | null>(null);
+  const [devices, setDevices] = useState<Device[]>([]); // State for devices
+  
   const [timePeriod, setTimePeriod] = useState<"day" | "month" | "year" | "total">("day");
   const [powerData] = useState(generatePowerData());
   const [socData] = useState(generateSOCData());
@@ -64,6 +76,28 @@ export function PlantDetail() {
     toGrid: true,
     charge: true,
   });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!plantId) return;
+      setLoading(true);
+      try {
+        const [plantData, devicesData] = await Promise.all([
+          sitesApi.getSite(plantId),
+          getDevices({ site: plantId })
+        ]);
+        setPlant(plantData);
+        setDevices(devicesData.results || []);
+      } catch (error) {
+        console.error("Failed to fetch plant details:", error);
+        toast.error("Failed to load plant details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [plantId]);
 
   const handleLegendClick = (e: any) => {
     const { dataKey } = e;
@@ -109,6 +143,14 @@ export function PlantDetail() {
     );
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
   if (!plant) {
     return (
       <div>
@@ -124,8 +166,6 @@ export function PlantDetail() {
       </div>
     );
   }
-
-  const devices = mockDevices.filter((d) => d.plant_id === plantId);
 
   // Calculate current values from latest data point
   const latestPower = powerData[powerData.length - 1];
@@ -180,73 +220,7 @@ export function PlantDetail() {
     return null;
   };
 
-  // ... inside PlantDetail
-  const [searchParams] = useSearchParams();
-  const currentTab = searchParams.get("tab") || "dashboard";
 
-  // If devices tab is active, show Devices view
-  if (currentTab === "devices") {
-    return (
-      <div>
-        <PageHeader
-          title={plant.name}
-          description={`Timezone: ${plant.timezone} | Tariff Zone: ${plant.tariff_zone || "None"}`}
-          action={
-            <Button variant="outline" onClick={() => navigate("/plants")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Plants
-            </Button>
-          }
-        />
-        {/* Reuse the Devices component functionality but filtered for this plant */}
-        <Devices plantId={plantId} showHeader={false} />
-      </div>
-    );
-  }
-
-  // If alerts tab is active, show placeholder
-  if (currentTab === "alerts") {
-    return (
-      <div>
-        <PageHeader
-          title="Alerts" // Changed title to be specific to the view
-          description={`Plant: ${plant.name}`}
-          action={
-            <Button variant="outline" onClick={() => navigate("/plants")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Plants
-            </Button>
-          }
-        />
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-20 text-gray-500">
-            <AlertTriangle className="h-16 w-16 mb-4 text-gray-300" />
-            <p className="text-xl font-medium">No Data Available</p>
-            <p className="text-sm mt-2">There are no active alerts for this plant.</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  // If info tab is active, show Plant Info view
-  if (currentTab === "info") {
-    return (
-      <div>
-        <PageHeader
-          title={plant.name}
-          description={`Timezone: ${plant.timezone} | Tariff Zone: ${plant.tariff_zone || "None"}`}
-          action={
-            <Button variant="outline" onClick={() => navigate("/plants")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Plants
-            </Button>
-          }
-        />
-        <PlantInfo plantId={plantId || ""} />
-      </div>
-    )
-  }
 
   return (
     <div>
@@ -261,7 +235,11 @@ export function PlantDetail() {
         }
       />
 
-      {/* Metrics Section */}
+      <Tabs value={currentTab} onValueChange={(val) => navigate(`?tab=${val}`)}>
+        {/* Navigation is handled by PlantSidebar */}
+        
+        <TabsContent value="dashboard">
+          {/* Metrics Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* House Image Card */}
         <Card className="flex items-center justify-center p-4 bg-white overflow-hidden h-full relative">
@@ -773,6 +751,26 @@ export function PlantDetail() {
           )}
         </CardContent>
       </Card>
-    </div >
+      </TabsContent>
+
+      <TabsContent value="devices">
+        <Devices plantId={plantId} showHeader={false} />
+      </TabsContent>
+
+      <TabsContent value="alerts">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-20 text-gray-500">
+            <AlertTriangle className="h-16 w-16 mb-4 text-gray-300" />
+            <p className="text-xl font-medium">No Data Available</p>
+            <p className="text-sm mt-2">There are no active alerts for this plant.</p>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="info">
+        <PlantInfo plantId={plantId || ""} />
+      </TabsContent>
+      </Tabs>
+    </div>
   );
 }

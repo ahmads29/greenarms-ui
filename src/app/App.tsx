@@ -177,10 +177,10 @@ function AppContent() {
 
 export default function App() {
     return (
-        <BrowserRouter>
-            <AppProvider>
+        <AppProvider>
+            <BrowserRouter>
                 <AppContent />
-            </AppProvider>
-        </BrowserRouter>
+            </BrowserRouter>
+        </AppProvider>
     );
 }

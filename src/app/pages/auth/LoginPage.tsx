@@ -6,7 +6,8 @@ import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { toast } from "sonner";
-import { Eye, EyeOff, Github } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import { authApi } from "@/app/api";
 
 export function LoginPage() {
     const { login } = useApp();
@@ -31,10 +32,10 @@ export function LoginPage() {
         if (validate()) {
             setIsLoading(true);
             try {
-                // Mock API call
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Call real Login API
+                const response = await authApi.login({ username, password });
 
-                // Mock success
+                // Mock user data since API only returns tokens for now
                 const mockUser = {
                     username: username,
                     email: "admin@greenarms.com",
@@ -43,10 +44,11 @@ export function LoginPage() {
                 };
 
                 toast.success("Logged in successfully");
-                login("mock-jwt-token", mockUser);
-            } catch (error) {
+                // Pass access token and mock user to context
+                login(response.access, mockUser);
+            } catch (error: any) {
                 console.error("Login error:", error);
-                toast.error("An error occurred during login. Please try again.");
+                toast.error(error.message || "An error occurred during login. Please try again.");
             } finally {
                 setIsLoading(false);
             }
@@ -117,7 +119,7 @@ export function LoginPage() {
                         </label>
                     </div>
 
-                    <Button type="submit" className="w-full" style={{ backgroundColor: '#4f39f6', color: 'white' }}>
+                    <Button onClick={handleSubmit} type="submit" className="w-full" style={{ backgroundColor: '#4f39f6', color: 'white' }}>
                         Sign In
                     </Button>
 

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from "react";
+import { authApi } from "@/app/api";
 
 interface User {
   email: string;
@@ -9,7 +10,7 @@ interface User {
 interface AppContextType {
   isAuthenticated: boolean;
   login: (token: string, userData: any) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   user: User;
   currentPage: string;
   navigateTo: (page: string) => void;
@@ -19,6 +20,8 @@ interface AppContextType {
   setRegistrationEmail: (email: string) => void;
   isEmailVerified: boolean;
   setIsEmailVerified: (verified: boolean) => void;
+  verificationToken: string | null;
+  setVerificationToken: (token: string | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -29,6 +32,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [registrationEmail, setRegistrationEmail] = useState<string | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
 
   // Mock user - Admin role
   const user: User = {
@@ -45,11 +49,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentPage("dashboard");
   };
 
-  const logout = () => {
-    setIsAuthenticated(false);
-    setCurrentPage("login");
-    setRegistrationEmail(null);
-    setIsEmailVerified(false);
+  const logout = async () => {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        await authApi.logout({ refresh_token: refreshToken });
+      }
+    } catch (error) {
+      console.error("Logout failed:", error);
+      // We continue with local cleanup even if API fails
+    } finally {
+      // Clear local storage (authApi might have done it, but double check)
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      
+      setIsAuthenticated(false);
+      setCurrentPage("login");
+      setRegistrationEmail(null);
+      setIsEmailVerified(false);
+      setVerificationToken(null);
+    }
   };
 
   const navigateTo = (page: string) => {
@@ -73,7 +92,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       registrationEmail,
       setRegistrationEmail,
       isEmailVerified,
-      setIsEmailVerified
+      setIsEmailVerified,
+      verificationToken,
+      setVerificationToken
     }}>
       {children}
     </AppContext.Provider>

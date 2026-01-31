@@ -4,11 +4,14 @@ import { useApp } from "@/app/context/AppContext";
 import { Button } from "@/app/components/ui/button";
 import { toast } from "sonner";
 import { MailCheck } from "lucide-react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/app/components/ui/input-otp";
+import { authApi } from "@/app/api";
 
 export function VerifyEmailPage() {
-    const { registrationEmail, setIsEmailVerified } = useApp();
+    const { registrationEmail, setIsEmailVerified, setVerificationToken } = useApp();
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
+    const [otp, setOtp] = useState("");
 
     useEffect(() => {
         if (!registrationEmail) {
@@ -16,31 +19,36 @@ export function VerifyEmailPage() {
         }
     }, [registrationEmail, navigate]);
 
-    const handleVerified = async () => {
+    const handleVerifyOtp = async () => {
+        if (otp.length !== 6) {
+            toast.error("Please enter a valid 6-digit OTP");
+            return;
+        }
+
         setIsLoading(true);
         try {
-            // Mock verification success
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const response = await authApi.verifyOtp(registrationEmail!, otp);
             
+            setVerificationToken(response.verification_token);
             setIsEmailVerified(true);
             toast.success("Email verified successfully");
             navigate("/register");
-        } catch (err) {
-            toast.error("Verification failed");
+        } catch (err: any) {
+            toast.error(err.message || "Verification failed");
         } finally {
             setIsLoading(false);
         }
     };
 
     const handleResend = async () => {
-        toast.promise(
-            new Promise(resolve => setTimeout(resolve, 1000)),
-            {
-                loading: 'Resending email...',
-                success: 'Verification email resent!',
-                error: 'Failed to resend email',
-            }
-        );
+        if (!registrationEmail) return;
+        
+        try {
+            await authApi.sendOtp(registrationEmail);
+            toast.success("OTP resent successfully");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to resend OTP");
+        }
     };
 
     if (!registrationEmail) return null;
@@ -55,22 +63,31 @@ export function VerifyEmailPage() {
                 <h1 className="text-2xl font-bold text-foreground mb-2">Verify your email</h1>
                 
                 <p className="text-muted-foreground mb-6">
-                    We sent a verification email to <br />
+                    We sent a verification code to <br />
                     <span className="font-medium text-foreground">{registrationEmail}</span>
                 </p>
 
-                <p className="text-sm text-muted-foreground mb-8">
-                    Please check your inbox and verify your email to continue.
-                </p>
+                <div className="flex justify-center mb-8">
+                    <InputOTP maxLength={6} value={otp} onChange={(value) => setOtp(value)}>
+                        <InputOTPGroup>
+                            <InputOTPSlot index={0} />
+                            <InputOTPSlot index={1} />
+                            <InputOTPSlot index={2} />
+                            <InputOTPSlot index={3} />
+                            <InputOTPSlot index={4} />
+                            <InputOTPSlot index={5} />
+                        </InputOTPGroup>
+                    </InputOTP>
+                </div>
 
                 <div className="space-y-4">
                     <Button 
-                        onClick={handleVerified}
+                        onClick={handleVerifyOtp}
                         className="w-full" 
                         style={{ backgroundColor: '#4f39f6', color: 'white' }}
-                        disabled={isLoading}
+                        disabled={isLoading || otp.length !== 6}
                     >
-                        {isLoading ? "Verifying..." : "I have verified"}
+                        {isLoading ? "Verifying..." : "Verify OTP"}
                     </Button>
 
                     <Button 
@@ -78,7 +95,7 @@ export function VerifyEmailPage() {
                         onClick={handleResend}
                         className="w-full"
                     >
-                        Resend email
+                        Resend code
                     </Button>
                 </div>
             </div>

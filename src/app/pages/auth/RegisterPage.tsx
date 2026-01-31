@@ -4,33 +4,26 @@ import { useApp } from "@/app/context/AppContext";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { toast } from "sonner";
 import { Eye, EyeOff, UserPlus } from "lucide-react";
-import { getCountries, getCountryCallingCode, Country } from "react-phone-number-input";
-import "react-phone-number-input/style.css";
-import * as Flags from 'country-flag-icons/react/3x2';
-
-// Get all countries except Israel
-const countries = getCountries().filter(country => country !== 'IL');
+import { authApi } from "@/app/api";
 
 export function RegisterPage() {
-    const { login, registrationEmail, isEmailVerified } = useApp();
+    const { login, registrationEmail, isEmailVerified, verificationToken } = useApp();
     const navigate = useNavigate();
+    const [isLoading, setIsLoading] = useState(false);
+    
     const [formData, setFormData] = useState({
         firstName: "",
         lastName: "",
-        phoneNumber: "",
+        username: "",
         password: "",
+        confirmPassword: ""
     });
-    const [showPassword, setShowPassword] = useState(false);
-    const [errors, setErrors] = useState<Record<string, string>>({});
     
-    const [selectedCountry, setSelectedCountry] = useState<Country>("IT");
-    const [localPhoneNumber, setLocalPhoneNumber] = useState("");
-
-    // Region names for display
-    const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (!registrationEmail) {
@@ -40,21 +33,8 @@ export function RegisterPage() {
         }
     }, [registrationEmail, isEmailVerified, navigate]);
 
-    // Update full phone number when country or local number changes
-    useEffect(() => {
-        if (localPhoneNumber) {
-            try {
-                const callingCode = getCountryCallingCode(selectedCountry);
-                setFormData(prev => ({ ...prev, phoneNumber: `+${callingCode}${localPhoneNumber}` }));
-            } catch (e) {
-                // Handle error if country code lookup fails
-            }
-        } else {
-            setFormData(prev => ({ ...prev, phoneNumber: "" }));
-        }
-    }, [selectedCountry, localPhoneNumber]);
-
     const validatePassword = (pwd: string) => {
+        // At least 8 chars, 1 upper, 1 lower, 1 number, 1 special
         const hasUpper = /[A-Z]/.test(pwd);
         const hasLower = /[a-z]/.test(pwd);
         const hasNumber = /[0-9]/.test(pwd);
@@ -66,12 +46,9 @@ export function RegisterPage() {
     const validate = () => {
         const newErrors: Record<string, string> = {};
 
-        if (!formData.firstName) newErrors.firstName = "First name is required";
-        if (!formData.lastName) newErrors.lastName = "Last name is required";
-
-        if (!localPhoneNumber) {
-            newErrors.phoneNumber = "Phone number is required";
-        }
+        if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
+        if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
+        if (!formData.username.trim()) newErrors.username = "Username is required";
 
         if (!formData.password) {
             newErrors.password = "Password is required";
@@ -79,16 +56,62 @@ export function RegisterPage() {
             newErrors.password = "Password must have at least 8 chars, incl. 1 upper, 1 lower, 1 number, 1 special";
         }
 
+        if (formData.password !== formData.confirmPassword) {
+            newErrors.confirmPassword = "Passwords do not match";
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if (validate()) {
-            // Mock register success
+        
+        if (!validate()) return;
+
+        setIsLoading(true);
+        try {
+            if (!verificationToken) {
+                toast.error("Missing verification token. Please verify email again.");
+                return;
+            }
+
+            const response = await authApi.registerUser({
+                username: formData.username,
+                email: registrationEmail!,
+                password: formData.password,
+                first_name: formData.firstName,
+                last_name: formData.lastName,
+                verification_token: verificationToken
+            });
+
             toast.success("Account created successfully");
-            login("mock-token", { email: registrationEmail, role: "viewer", canModify: false });
+            
+            // Login the user with the returned tokens
+            login(response.access, { 
+                email: registrationEmail!, 
+                username: formData.username,
+                role: "viewer", // Default role
+                canModify: false 
+            });
+            
+            // Store refresh token
+            if (response.refresh) {
+                localStorage.setItem('refreshToken', response.refresh);
+            }
+
+            // Redirect handled by login function (sets currentPage to dashboard) or manually if needed
+            // AppContext.login sets currentPage="dashboard", but we might need to navigate if using Router
+            navigate("/"); // Assuming dashboard is at root or handled by router based on auth state
+
+        } catch (err: any) {
+            if (err.message && (err.message.includes("Validation") || err.message.includes("Token"))) {
+                 toast.error(err.message);
+            } else {
+                 toast.error("Registration failed. Please try again.");
+            }
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -122,8 +145,9 @@ export function RegisterPage() {
                             <Input
                                 id="firstName"
                                 value={formData.firstName}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, firstName: e.target.value })}
+                                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                                 className={errors.firstName ? "border-destructive" : ""}
+                                placeholder="John"
                             />
                             {errors.firstName && <p className="text-xs text-destructive">{errors.firstName}</p>}
                         </div>
@@ -132,50 +156,24 @@ export function RegisterPage() {
                             <Input
                                 id="lastName"
                                 value={formData.lastName}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, lastName: e.target.value })}
+                                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                                 className={errors.lastName ? "border-destructive" : ""}
+                                placeholder="Doe"
                             />
                             {errors.lastName && <p className="text-xs text-destructive">{errors.lastName}</p>}
                         </div>
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Phone Number</Label>
-                        <div className="flex gap-2">
-                            <div className="w-[180px]">
-                                <Select 
-                                    value={selectedCountry} 
-                                    onValueChange={(value: Country) => setSelectedCountry(value)}
-                                >
-                                    <SelectTrigger className={errors.phoneNumber ? "border-destructive" : ""}>
-                                        <SelectValue placeholder="Country" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {countries.map((country) => {
-                                            const FlagComponent = Flags[country as keyof typeof Flags];
-                                            const countryName = regionNames.of(country);
-                                            return (
-                                                <SelectItem key={country} value={country}>
-                                                    <div className="flex items-center gap-2">
-                                                        {FlagComponent && <FlagComponent className="w-5 h-4 rounded-sm shrink-0" />}
-                                                        <span className="truncate">{countryName}</span>
-                                                        <span className="text-muted-foreground ml-auto">+{getCountryCallingCode(country)}</span>
-                                                    </div>
-                                                </SelectItem>
-                                            );
-                                        })}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <Input
-                                type="tel"
-                                placeholder="Phone number"
-                                value={localPhoneNumber}
-                                onChange={(e) => setLocalPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                                className={`flex-1 ${errors.phoneNumber ? "border-destructive" : ""}`}
-                            />
-                        </div>
-                        {errors.phoneNumber && <p className="text-xs text-destructive">{errors.phoneNumber}</p>}
+                        <Label htmlFor="username">Username</Label>
+                        <Input
+                            id="username"
+                            value={formData.username}
+                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                            className={errors.username ? "border-destructive" : ""}
+                            placeholder="johndoe"
+                        />
+                        {errors.username && <p className="text-xs text-destructive">{errors.username}</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -185,40 +183,63 @@ export function RegisterPage() {
                                 id="password"
                                 type={showPassword ? "text" : "password"}
                                 value={formData.password}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, password: e.target.value })}
-                                className={errors.password ? "border-destructive" : ""}
+                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                className={`pr-10 ${errors.password ? "border-destructive" : ""}`}
+                                placeholder="••••••••"
                             />
-                            <button
+                            <Button
                                 type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                             >
-                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
+                                {showPassword ? (
+                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                )}
+                            </Button>
                         </div>
                         {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
-                        <p className="text-xs text-muted-foreground">
-                            Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.
-                        </p>
                     </div>
 
-                    <Button type="submit" className="w-full mt-4" style={{ backgroundColor: '#4f39f6', color: 'white' }}>
-                        Complete Registration
-                    </Button>
-
-                    <div className="text-center mt-4">
-                        <p className="text-sm text-muted-foreground">
-                            Already have an account?{" "}
-                            <button
+                    <div className="space-y-2">
+                        <Label htmlFor="confirmPassword">Confirm Password</Label>
+                        <div className="relative">
+                            <Input
+                                id="confirmPassword"
+                                type={showConfirmPassword ? "text" : "password"}
+                                value={formData.confirmPassword}
+                                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                className={`pr-10 ${errors.confirmPassword ? "border-destructive" : ""}`}
+                                placeholder="••••••••"
+                            />
+                            <Button
                                 type="button"
-                                onClick={() => navigate("/login")}
-                                className="hover:underline font-medium"
-                                style={{ color: '#4f39f6' }}
+                                variant="ghost"
+                                size="sm"
+                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                             >
-                                Sign In
-                            </button>
-                        </p>
+                                {showConfirmPassword ? (
+                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                )}
+                            </Button>
+                        </div>
+                        {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
                     </div>
+
+                    <Button 
+                        type="submit" 
+                        className="w-full"
+                        disabled={isLoading}
+                        style={{ backgroundColor: '#4f39f6', color: 'white' }}
+                    >
+                        {isLoading ? "Creating Account..." : "Complete Registration"}
+                    </Button>
                 </form>
             </div>
         </div>

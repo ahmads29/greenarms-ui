@@ -7,6 +7,8 @@ import { Label } from "@/app/components/ui/label";
 import { toast } from "sonner";
 import { Mail, UserPlus } from "lucide-react";
 
+import { authApi } from "@/app/api";
+
 export function EmailRegisterPage() {
     const { setRegistrationEmail } = useApp();
     const navigate = useNavigate();
@@ -39,14 +41,14 @@ export function EmailRegisterPage() {
         setIsLoading(true);
 
         try {
-            //Mock Api Call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
+            // Call Send OTP API
+            await authApi.sendOtp(email);
+            console.log("OTP sent to:", email);
             setRegistrationEmail(email);
-            toast.success("Verification email sent");
+            toast.success("OTP sent to your email");
             navigate("/verify-email");
-        } catch (err) {
-            toast.error("Failed to send verification email");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to send OTP");
         } finally {
             setIsLoading(false);
         }

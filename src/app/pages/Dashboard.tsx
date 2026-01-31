@@ -38,12 +38,16 @@ import {
   type PeakHourRanking,
   type PowerNormalizationRanking,
 } from "@/app/api/dashboardApi";
+import { getDashboardOverview } from "@/app/api/dashboard.api";
+import { DashboardOverview } from "@/app/types/api/Dashboard.types";
+import { Server, Activity, AlertTriangle, Layers } from "lucide-react";
 
 export function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState("2026/01");
   const [viewMode, setViewMode] = useState<"Month" | "Year">("Month");
   
   // API data states
+  const [overviewData, setOverviewData] = useState<DashboardOverview | null>(null);
   const [productionMetrics, setProductionMetrics] = useState<ProductionMetrics | null>(null);
   const [plantStatus, setPlantStatus] = useState<PlantStatusMetrics | null>(null);
   const [historicalData, setHistoricalData] = useState<HistoricalProductionData[]>([]);
@@ -58,6 +62,14 @@ export function Dashboard() {
     async function loadDashboardData() {
       setIsLoading(true);
       try {
+        // Fetch real overview data independently to not block mock data if it fails
+        try {
+          const overview = await getDashboardOverview();
+          setOverviewData(overview);
+        } catch (err) {
+          console.error("Failed to fetch dashboard overview:", err);
+        }
+
         const [metrics, status, historical, peakRankings, powerRankings] = await Promise.all([
           fetchProductionMetrics(),
           fetchPlantStatusMetrics(),
@@ -251,6 +263,80 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Device Status (Real Data) */}
+      {overviewData && (
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Device Status</CardTitle>
+              <Badge variant={overviewData.has_devices ? "default" : "secondary"}>
+                {overviewData.has_devices ? "System Active" : "No Devices"}
+              </Badge>
+            </div>
+            <p className="text-xs text-gray-500">
+              Last Updated: {new Date(overviewData.data_freshness).toLocaleString()}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-50 rounded-lg">
+                  <Server className="h-6 w-6 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium tracking-wide uppercase">Total Devices</p>
+                  <p className="text-2xl font-bold text-gray-900">{overviewData.total_devices}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500 mb-2 font-medium tracking-wide uppercase">Active</p>
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-green-500" />
+                  <p className="text-2xl font-bold text-gray-900">{overviewData.active_devices}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500 mb-2 font-medium tracking-wide uppercase">Roles</p>
+                <div className="flex flex-col text-sm">
+                  <span className="text-gray-700">Master: <span className="font-semibold">{overviewData.master_devices}</span></span>
+                  <span className="text-gray-700">Slave: <span className="font-semibold">{overviewData.slave_devices}</span></span>
+                  <span className="text-gray-700">Standalone: <span className="font-semibold">{overviewData.standalone_devices}</span></span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500 mb-2 font-medium tracking-wide uppercase">Groups</p>
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-blue-500" />
+                  <p className="text-2xl font-bold text-gray-900">{overviewData.device_groups}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500 mb-2 font-medium tracking-wide uppercase">Recent Errors (24h)</p>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className={`h-4 w-4 ${overviewData.recent_errors_24h > 0 ? 'text-red-500' : 'text-gray-300'}`} />
+                  <p className={`text-2xl font-bold ${overviewData.recent_errors_24h > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    {overviewData.recent_errors_24h}
+                  </p>
+                </div>
+              </div>
+              
+              <div>
+                 <p className="text-xs text-gray-500 mb-2 font-medium tracking-wide uppercase">Last Dispatch</p>
+                 <p className="text-sm font-medium text-gray-900">
+                    {overviewData.last_dispatch_time 
+                      ? new Date(overviewData.last_dispatch_time).toLocaleTimeString() 
+                      : "None"}
+                 </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Plant Status */}
       <Card className="mb-6">
