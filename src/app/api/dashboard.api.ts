@@ -1,7 +1,16 @@
 import client from './client';
-import { DashboardMetrics, PowerFlowData } from '@/app/types/api/Dashboard.types';
+import { DashboardMetrics, PowerFlowData, DashboardOverview } from '@/app/types/api/Dashboard.types';
 
-// Dashboard API endpoints (Placeholders)
+// Dashboard API endpoints
+
+/**
+ * Get dashboard overview statistics
+ * Endpoint: GET /dashboard/overview/
+ */
+export const getDashboardOverview = async (): Promise<DashboardOverview> => {
+  const response = await client.get<DashboardOverview>('/dashboard/overview/');
+  return response.data;
+};
 
 /**
  * Get overview metrics for the dashboard

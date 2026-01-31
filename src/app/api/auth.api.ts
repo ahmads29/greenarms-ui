@@ -41,7 +41,7 @@ export const login = async (data: LoginRequest): Promise<LoginResponse> => {
 export const sendOtp = async (email: string): Promise<void> => {
   try {
     const data: SendOtpRequest = { email };
-    await client.post('/auth/register/initiate', data);
+    await client.post('/auth/register/initiate/', data);
   } catch (error) {
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 400) {
@@ -62,7 +62,7 @@ export const sendOtp = async (email: string): Promise<void> => {
 export const verifyOtp = async (email: string, otp_code: string): Promise<VerifyOtpResponse> => {
   try {
     const data: VerifyOtpRequest = { email, otp_code };
-    const response = await client.post<VerifyOtpResponse>('/auth/verify-otp/', data);
+    const response = await client.post<VerifyOtpResponse>('/auth/register/verify/', data);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {

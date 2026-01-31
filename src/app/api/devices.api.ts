@@ -1,7 +1,16 @@
 import client from './client';
-import { Device, PaginatedDevices, CreateDeviceRequest, UpdateDeviceRequest } from '@/app/types/api/Devices.types';
+import { Device, PaginatedDevices, CreateDeviceRequest, UpdateDeviceRequest, DeviceCommissionStatus, DeviceGroupInfo } from '@/app/types/api/Devices.types';
 
 // Devices API endpoints
+
+/**
+ * Get device group info
+ * Endpoint: GET /devices/:id/group_info/
+ */
+export const getDeviceGroupInfo = async (id: string): Promise<DeviceGroupInfo> => {
+  const response = await client.get<DeviceGroupInfo>(`/devices/${id}/group_info/`);
+  return response.data;
+};
 
 /**
  * Get list of all devices

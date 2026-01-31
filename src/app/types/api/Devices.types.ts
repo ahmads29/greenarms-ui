@@ -45,3 +45,15 @@ export interface CreateDeviceRequest {
 }
 
 export interface UpdateDeviceRequest extends Partial<Device> {}
+
+export interface DeviceCommissionStatus {
+  status: string;
+  message?: string;
+  progress?: number;
+  details?: Record<string, any>;
+}
+
+export interface DeviceGroupInfo {
+  device: Device;
+  group_members: Device[];
+}

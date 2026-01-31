@@ -10,7 +10,9 @@ import { Building2, Edit, Eye, Loader2 } from "lucide-react";
 import { Badge } from "@/app/components/ui/badge";
 import { CreateSiteDialog } from "@/app/components/CreateSiteDialog";
 import { Site } from "@/app/types/api/Sites.types";
-import { sitesApi } from "@/app/api";
+import { Device as ApiDevice } from "@/app/types/api/Devices.types";
+import { DeviceStatus } from "@/app/types/api/Status.types";
+import { sitesApi, devicesApi, statusApi } from "@/app/api";
 import { toast } from "sonner";
 
 export function Plants() {
@@ -22,41 +24,77 @@ export function Plants() {
   const [isLoading, setIsLoading] = useState(true);
   
   const [plants, setPlants] = useState<Site[]>([]);
+  const [allDevices, setAllDevices] = useState<ApiDevice[]>([]);
+  const [allStatuses, setAllStatuses] = useState<DeviceStatus[]>([]);
 
   useEffect(() => {
-    fetchPlants();
+    fetchData();
   }, []);
 
-  const fetchPlants = async () => {
+  const fetchData = async () => {
     setIsLoading(true);
     try {
-      const response = await sitesApi.getSites();
-      // Handle different response structures (array vs paginated object)
-      const data = Array.isArray(response) ? response : (response as any).results || [];
+      const [sitesResponse, devicesResponse, statusesResponse] = await Promise.all([
+        sitesApi.getSites(),
+        devicesApi.getDevices(),
+        statusApi.getDeviceStatuses()
+      ]);
+
+      // Handle Sites
+      const sitesData = Array.isArray(sitesResponse) ? sitesResponse : (sitesResponse as any).results || [];
       
-      if (Array.isArray(data)) {
-        setPlants(data);
+      if (Array.isArray(sitesData)) {
+        setPlants(sitesData);
       } else {
-        console.error("Unexpected API response format:", response);
+        console.error("Unexpected API response format:", sitesResponse);
         setPlants([]);
         toast.error("Received invalid data format from server");
       }
+
+      // Handle Devices
+      const devicesData = devicesResponse.results || [];
+      setAllDevices(devicesData);
+
+      // Handle Statuses
+      const statusesData = statusesResponse.results || [];
+      setAllStatuses(statusesData);
+
     } catch (error) {
-      console.error("Failed to fetch plants:", error);
+      console.error("Failed to fetch data:", error);
       // Fallback to mock data if API fails
-      toast.error("Failed to load plants from API. Using local data.");
+      toast.error("Failed to load data from API. Using local data.");
       
       const initialPlants = mockPlants.map(p => ({
         ...p,
-        id: p.id, // Keep original ID (string)
-        country: "US", // Default for mock
-        state: "NY", // Default for mock
+        id: p.id,
+        country: "US",
+        state: "NY",
         uses_dynamic_tariff: false,
         device_count: 0,
         updated_at: new Date().toISOString()
       })) as unknown as Site[];
       
       setPlants(initialPlants);
+
+      // Map mock devices to API devices structure for fallback
+      const initialDevices = mockDevices.map(d => ({
+        ...d,
+        site: d.plant_id,
+        // Map other fields if necessary
+      })) as unknown as ApiDevice[];
+      setAllDevices(initialDevices);
+      
+      // Mock statuses could be derived from mockDevices if needed, 
+      // but for now we'll leave empty or simple fallback logic in helpers will handle it?
+      // Actually helpers rely on allStatuses for decisions.
+      // If we want mock decisions to work, we need to populate allStatuses from mockDevices.
+      const initialStatuses = mockDevices.map(d => ({
+        device: d.id,
+        effective_status: d.effective_status || "NEUTRAL",
+        // other fields
+      })) as unknown as DeviceStatus[];
+      setAllStatuses(initialStatuses);
+
     } finally {
       setIsLoading(false);
     }
@@ -87,7 +125,7 @@ export function Plants() {
   };
 
   const getPlantDeviceCount = (plantId: string | number) => {
-    const devices = mockDevices.filter((d) => d.plant_id === plantId.toString());
+    const devices = allDevices.filter((d) => d.site === plantId.toString());
     const masters = devices.filter((d) => d.role === "master").length;
     const slaves = devices.filter((d) => d.role === "slave").length;
     const standalone = devices.filter((d) => d.role === "standalone").length;
@@ -95,7 +133,7 @@ export function Plants() {
   };
 
   const getPlantStatus = (plantId: string | number) => {
-    const devices = mockDevices.filter((d) => d.plant_id === plantId.toString());
+    const devices = allDevices.filter((d) => d.site === plantId.toString());
     if (devices.length === 0) return "No Devices";
 
     const onlineDevices = devices.filter(
@@ -111,10 +149,14 @@ export function Plants() {
   };
 
   const getPlantDecisions = (plantId: string | number) => {
-    const devices = mockDevices.filter((d) => d.plant_id === plantId.toString());
-    const charging = devices.filter((d) => d.effective_status === "CHARGING").length;
-    const discharging = devices.filter((d) => d.effective_status === "DISCHARGING").length;
-    const neutral = devices.filter((d) => d.effective_status === "NEUTRAL").length;
+    const devices = allDevices.filter((d) => d.site === plantId.toString());
+    
+    // Get statuses for these devices
+    const plantStatuses = allStatuses.filter(s => devices.some(d => d.id === s.device));
+
+    const charging = plantStatuses.filter((s) => s.effective_status === "CHARGING").length;
+    const discharging = plantStatuses.filter((s) => s.effective_status === "DISCHARGING").length;
+    const neutral = plantStatuses.filter((s) => s.effective_status === "NEUTRAL").length;
     return { charging, discharging, neutral };
   };
 

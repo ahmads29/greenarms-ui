@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/app/components/PageHeader";
 import { StatusBadge } from "@/app/components/StatusBadge";
@@ -9,13 +9,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
-import { ArrowLeft, Activity, Zap, Battery } from "lucide-react";
+import { ArrowLeft, Activity, Zap, Battery, Users, Loader2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
+import { getDeviceDetails, getDeviceGroupInfo } from "@/app/api/devices.api";
+import { Device, DeviceGroupInfo } from "@/app/types/api/Devices.types";
+import { toast } from "sonner";
 
 export function DeviceDetail() {
   const { id: deviceId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const device = mockDevices.find((d) => d.id === deviceId);
+  const [device, setDevice] = useState<Device | null>(null);
+  const [groupInfo, setGroupInfo] = useState<DeviceGroupInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!deviceId) return;
+      setLoading(true);
+      try {
+        const deviceData = await getDeviceDetails(deviceId);
+        setDevice(deviceData);
+        
+        try {
+          const groupData = await getDeviceGroupInfo(deviceId);
+          setGroupInfo(groupData);
+        } catch (error) {
+          console.error("Failed to fetch group info:", error);
+          // Don't fail the whole page if group info fails, just log it
+        }
+      } catch (error) {
+        console.error("Failed to fetch device details:", error);
+        toast.error("Failed to load device details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [deviceId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
 
   if (!device) {
     return (
@@ -33,11 +72,19 @@ export function DeviceDetail() {
     );
   }
 
-  const plant = mockPlants.find((p) => p.id === device.plant_id);
-  const masterDevice = device.master_device_id
-    ? mockDevices.find((d) => d.id === device.master_device_id)
+  // Use group info members if available, otherwise fallback to finding in mock data (or just empty if we want to be strict)
+  // For now, let's rely on groupInfo.group_members if we have them.
+  const groupMembers = groupInfo?.group_members || [];
+  
+  // Identify master/slave relationships from group info
+  const masterDevice = device.role === 'slave' 
+    ? groupMembers.find(d => d.role === 'master') 
     : null;
-  const slaveDevices = mockDevices.filter((d) => d.master_device_id === device.id);
+    
+  const slaveDevices = device.role === 'master'
+    ? groupMembers.filter(d => d.role === 'slave')
+    : [];
+
   const deviceLogs = mockDispatchLogs
     .filter((l) => l.device_id === deviceId)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -47,7 +94,7 @@ export function DeviceDetail() {
     <div>
       <PageHeader
         title={device.name}
-        description={`Serial: ${device.serial_number} | Plant: ${plant?.name}`}
+        description={`Serial: ${device.serial_number} | Plant: ${device.site_name}`}
         action={
           <Button variant="outline" onClick={() => navigate("/devices")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -71,6 +118,7 @@ export function DeviceDetail() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="group-info">Group Info</TabsTrigger>
           <TabsTrigger value="telemetry">Telemetry</TabsTrigger>
           <TabsTrigger value="decisions">Decisions</TabsTrigger>
           <TabsTrigger value="dispatch-logs">Dispatch Logs</TabsTrigger>
@@ -100,7 +148,13 @@ export function DeviceDetail() {
                   <div>
                     <p className="text-sm text-gray-500">Power</p>
                     <p className="text-2xl font-bold text-gray-900 mt-1">
-                      {device.power_kw !== null ? `${device.power_kw.toFixed(1)} kW` : "-"}
+                      {/* device.power_kw is not in the type definition yet, using a safe access or placeholder if needed. 
+                          The provided JSON doesn't show power_kw. I'll comment it out or handle it safely. 
+                          Checking type definition: Device interface doesn't have power_kw. 
+                          But the original code used it. I will assume it might come from telemetry later or mock had it.
+                          For now let's use a placeholder or check if it exists in 'device' as any.
+                      */}
+                      {(device as any).power_kw !== undefined ? `${(device as any).power_kw.toFixed(1)} kW` : "-"}
                     </p>
                   </div>
                   <Zap className="h-8 w-8 text-gray-400" />
@@ -114,7 +168,8 @@ export function DeviceDetail() {
                   <div>
                     <p className="text-sm text-gray-500">SOC</p>
                     <p className="text-2xl font-bold text-gray-900 mt-1">
-                      {device.soc_percent !== null ? `${device.soc_percent}%` : "-"}
+                      {/* Similar to power_kw, checking if soc_percent exists or use generic access */}
+                      {(device as any).soc_percent !== undefined ? `${(device as any).soc_percent}%` : "-"}
                     </p>
                   </div>
                   <Battery className="h-8 w-8 text-gray-400" />
@@ -144,8 +199,8 @@ export function DeviceDetail() {
             <CardContent>
               <div className="flex items-center gap-4">
                 <StatusBadge
-                  decision={device.decision}
-                  effectiveStatus={device.effective_status}
+                  decision={device.latest_decision?.decision || "idle"}
+                  effectiveStatus={device.status}
                 />
                 <span className="text-sm text-gray-500">
                   {device.last_seen_at
@@ -165,7 +220,7 @@ export function DeviceDetail() {
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <dt className="text-sm text-gray-500">Plant</dt>
-                  <dd className="text-sm font-medium text-gray-900 mt-1">{plant?.name}</dd>
+                  <dd className="text-sm font-medium text-gray-900 mt-1">{device.site_name}</dd>
                 </div>
                 <div>
                   <dt className="text-sm text-gray-500">Serial Number</dt>
@@ -235,6 +290,49 @@ export function DeviceDetail() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Group Info Tab */}
+        <TabsContent value="group-info" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Group Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {groupMembers.length === 0 ? (
+                 <div className="text-center py-12">
+                   <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                   <p className="text-gray-500">No group members found.</p>
+                 </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groupMembers.map((member) => (
+                      <div key={member.id} className={`p-4 rounded-lg border ${member.id === device.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
+                         <div className="flex justify-between items-start mb-2">
+                           <div>
+                             <h4 className="font-medium text-gray-900">{member.name}</h4>
+                             <p className="text-xs text-gray-500">{member.serial_number}</p>
+                           </div>
+                           <RoleBadge role={member.role} />
+                         </div>
+                         <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+                            <Badge variant={member.status === 'active' ? 'default' : 'secondary'} className={member.status === 'active' ? 'bg-green-100 text-green-800 hover:bg-green-100' : ''}>
+                              {member.status}
+                            </Badge>
+                            {member.id !== device.id && (
+                              <Button size="sm" variant="ghost" onClick={() => navigate(`/devices/${member.id}`)}>
+                                View
+                              </Button>
+                            )}
+                         </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Telemetry Tab */}
